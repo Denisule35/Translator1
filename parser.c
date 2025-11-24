@@ -4,6 +4,7 @@
 #include <stdarg.h>
 
 #include "lexer.h"
+#include "ad.h"
 
 int iTk;
 Token *consumed;
@@ -23,6 +24,7 @@ _Noreturn void tkerr(const char *fmt,...){
 	exit(EXIT_FAILURE);
 	}
 
+
 bool consume(int code){
 	if(tokens[iTk].code==code){
 		consumed=&tokens[iTk++];
@@ -32,9 +34,18 @@ bool consume(int code){
 	}
 
 bool baseType() {
-	if (consume(TYPE_INT)) return true;
-	if (consume(TYPE_REAL)) return true;
-	if (consume(TYPE_STR)) return true;
+	if (consume(TYPE_INT)) {
+		ret.type=TYPE_INT;
+		return true;
+	}
+	if (consume(TYPE_REAL)) {
+       ret.type=TYPE_REAL;
+		return true;
+	}
+	if (consume(TYPE_STR)) {
+		ret.type=TYPE_STR;
+		return true;
+	}
 	return false;
 }
 
@@ -43,8 +54,15 @@ bool defVar() {
 
 	if (consume(VAR)) {
 		if (consume(ID)) {
+			const char *name=consumed->text;
+			Symbol *s=searchInCurrentDomain(name);
+			if(s)tkerr("symbol redefinition: %s",name);
+			s=addSymbol(name,KIND_VAR);
+			s->local=crtFn!=NULL;
+
 			if (consume(COLON)) {
 				if (baseType()) {
+					s->type=ret.type;
 					if (consume(SEMICOLON)) {
 						return true;
 					} else tkerr("Lipseste ';' !");
@@ -60,8 +78,16 @@ bool defVar() {
 
 bool funcParam() {
 	if (consume(ID)) {
+		const char *name = consumed->text;
+		Symbol *s = searchInCurrentDomain(name);
+		if (s)tkerr("symbol redefinition: %s", name);
+		s = addSymbol(name, KIND_ARG);
+		Symbol *sFnParam = addFnArg(crtFn, name);
+
 		if (consume(COLON)) {
 			if (baseType()) {
+				s->type=ret.type;
+				sFnParam->type=ret.type;
 				return true;
 			} else tkerr("Lipseste tipul parametrului!");
 		} else tkerr("Lipseste ':' dupa numele parametrului!");
@@ -348,6 +374,14 @@ bool defFunc() {
 
 	if (consume(FUNCTION)) {
 		if (consume(ID)) {
+
+			const char *name = consumed->text;
+			Symbol *s = searchInCurrentDomain(name);
+			if (s)tkerr("symbol redefinition: %s", name);
+			crtFn = addSymbol(name, KIND_FN);
+			crtFn->args = NULL;
+			addDomain();
+
 			if (consume(LPAR)) {
 
 				funcParams();
@@ -356,12 +390,16 @@ bool defFunc() {
 					if (consume(COLON)) {
 						if (baseType()) {
 
+							crtFn->type=ret.type;
+
 							while (defVar()) {
 
 							}
 
 							if (block()) {
 								if (consume(END)) {
+									delDomain();
+									crtFn=NULL;
 									return true;
 								} else tkerr("Lipseste 'END' dupa blocul functiei!");
 							} else tkerr("Lipseste blocul de cod al functiei!");
@@ -380,6 +418,9 @@ bool defFunc() {
 
  //program ::= ( defVar | defFunc | block )* FINISH
  bool program(){
+
+addDomain();
+
  	for(;;){
 		if(defVar()){}
 		else if(defFunc()){}
@@ -387,10 +428,14 @@ bool defFunc() {
  		else break;
  		}
  	if(consume(FINISH)){
- 		printf("e totul bine");
+
+
+ 		delDomain();
  		return true;
  		}else tkerr("syntax error");
  	return false;
+
+
  	}
 
  void parse(){

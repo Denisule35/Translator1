@@ -6,4 +6,5 @@ set(CMAKE_C_STANDARD 11)
 add_executable(untitled main.c
         lexer.c
         utils.c
-        parser.c)
+        parser.c
+ad.c)
