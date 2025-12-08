@@ -7,4 +7,5 @@ add_executable(untitled main.c
         lexer.c
         utils.c
         parser.c
-ad.c)
+ad.c
+        at.c)
