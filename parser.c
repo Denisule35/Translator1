@@ -183,8 +183,9 @@ bool factor() {
          		setRet(s->type,false);
          		return true;
          	}
-         	if(s->kind==KIND_FN)tkerr("the function %s can only be called",s->name); setRet(s->type,true);
+
          }
+    	if(s->kind==KIND_FN)tkerr("the function %s can only be called",s->name); setRet(s->type,true);
     	return true;
     }
 
@@ -285,9 +286,9 @@ return true;
 
 bool exprComp() {
 	int start = iTk;
-	Ret leftType=ret;
-if (exprAdd()) {
 
+if (exprAdd()) {
+	Ret leftType=ret;
 	if (consume(LESS) || consume(EQUAL)) {
 		if (exprAdd()) {
 
