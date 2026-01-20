@@ -8,4 +8,6 @@ add_executable(untitled main.c
         utils.c
         parser.c
 ad.c
-        at.c)
+        at.c
+        gen.c
+)

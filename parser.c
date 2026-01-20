@@ -6,6 +6,7 @@
 #include "lexer.h"
 #include "ad.h"
 #include "at.h"
+#include "gen.h"
 
 int iTk;
 Token *consumed;
@@ -65,6 +66,9 @@ bool defVar() {
 				if (baseType()) {
 					s->type=ret.type;
 					if (consume(SEMICOLON)) {
+
+						Text_write(crtVar,"%s %s;\n",cType(ret.type),name);
+
 						return true;
 					} else tkerr("Lipseste ';' !");
 				} else tkerr("Nu ai ales tipul de variabila!");
@@ -89,6 +93,9 @@ bool funcParam() {
 			if (baseType()) {
 				s->type=ret.type;
 				sFnParam->type=ret.type;
+
+				Text_write(&tFnHeader,"%s %s",cType(ret.type),name);
+
 				return true;
 			} else tkerr("Lipseste tipul parametrului!");
 		} else tkerr("Lipseste ':' dupa numele parametrului!");
@@ -104,6 +111,9 @@ bool funcParams() {
 
 		while (true) {
 			if (consume(COMMA)) {
+
+				Text_write(&tFnHeader,",");
+
               if (funcParam()) {
 
               }else{tkerr("Lipseste parametrul de dupa virgula");}
@@ -122,11 +132,15 @@ bool funcParams() {
 bool factor() {
 	if (consume(INT)) {
 
+		Text_write(crtCode,"%d",consumed->i);
+
 		setRet(TYPE_INT,false);
 
 		return true;
 	}
 	if (consume(REAL)) {
+
+		Text_write(crtCode,"%g",consumed->r);
 
 		setRet(TYPE_REAL,false);
 
@@ -134,13 +148,21 @@ bool factor() {
 	}
 	if (consume(STR)) {
 
+		Text_write(crtCode,"\"%s\"",consumed->text);
+
 		setRet(TYPE_STR,false);
 
 		return true;
 	}
 	if (consume(LPAR)) {
+
+		Text_write(crtCode,"(");
+
 		if (expr()) {
           if (consume(RPAR)) {
+
+          	Text_write(crtCode,")");
+
 	          return true;
           }else{tkerr("Lipseste ')'");}
 		}else{tkerr("Lipseste expresia");}
@@ -148,10 +170,15 @@ bool factor() {
 	}
     if (consume(ID)) {
 
+
     	Symbol *s=searchSymbol(consumed->text);
+
+    	Text_write(crtCode,"%s",s->name);
     	if(!s)tkerr("undefined symbol: %s",consumed->text);
 
          if (consume(LPAR)) {
+
+         	Text_write(crtCode,"(");
 
          	if(s->kind!=KIND_FN)tkerr("%s cannot be called, because it is not a function",s->name);
          	Symbol *argDef=s->args;
@@ -165,6 +192,9 @@ bool factor() {
          		while (true) {
 
          			if (consume(COMMA)) {
+
+         				Text_write(crtCode,",");
+
          				if (expr()) {
 
          					if(!argDef)tkerr("the function %s is called with too many arguments",s->name);
@@ -179,6 +209,9 @@ bool factor() {
 
          	}
          	if (consume(RPAR)) {
+
+         		Text_write(crtCode,")");
+
          		if(argDef)tkerr("the function %s is called with too few arguments",s->name);
          		setRet(s->type,false);
          		return true;
@@ -196,6 +229,8 @@ bool exprPrefix() {
 	int start = iTk;
 	if (consume(SUB)) {
 
+		Text_write(crtCode,"-");
+
 		if (factor()) {
 
 			if(ret.type==TYPE_STR)tkerr("the expression of unary- must be of type int or real");
@@ -207,6 +242,8 @@ bool exprPrefix() {
 	}
 
 	if (consume(NOT)) {
+
+		Text_write(crtCode,"!");
 
 		if (factor()) {
 
@@ -229,80 +266,119 @@ if (factor()) {
 
 
 bool exprMul() {
-
 	int start = iTk;
-	if (exprPrefix()) {
 
-		while (true) {
-			if (consume(MUL) || consume(DIV)) {
-
-				Ret leftType=ret;
-				if(leftType.type==TYPE_STR)tkerr("the operands of * or / cannot be of type str");
-
-				if (exprPrefix()) {
-
-					if(leftType.type!=ret.type)tkerr("different types for the operands of * or /");
-					ret.lval=false;
-
-				}
-				else {tkerr("Lipseste expresia dupa operatorul aritmetic");}
-			}
-			else {break;}
-		}
-		return true;
+	if (!exprPrefix()) {
+		iTk = start;
+		return false;
 	}
-	iTk = start;
-	return false;
 
+	while (true) {
 
+		if (consume(MUL)) {
+			// *
+
+			Text_write(crtCode,"*");
+
+		}
+		else if (consume(DIV)) {
+			// /
+			Text_write(crtCode,"/");
+
+		}
+		else {
+			break;
+		}
+
+		Ret leftType = ret;
+		if (leftType.type == TYPE_STR)
+			tkerr("the operands of * or / cannot be of type str");
+
+		if (!exprPrefix())
+			tkerr("Lipseste expresia dupa operatorul aritmetic");
+
+		if (leftType.type != ret.type)
+			tkerr("different types for the operands of * or /");
+
+		ret.lval = false;
+	}
+
+	return true;
 }
 
 bool exprAdd() {
 	int start = iTk;
-if (exprMul()) {
 
-while (true) {
-	if (consume(ADD) || consume(SUB)) {
+	if (!exprMul()) {
+		iTk = start;
+		return false;
+	}
 
-		Ret leftType=ret;
-		if(leftType.type==TYPE_STR)tkerr("the operands of + or- cannot be of type str");
+	while (true) {
 
-		if (exprMul()) {
-
-			if(leftType.type!=ret.type)tkerr("different types for the operands of + or-"); ret.lval=false;
+		if (consume(ADD)) {
+			// +
+			Text_write(crtCode,"+");
 
 		}
-		else {tkerr("Lipseste expresia dupa operatorul aritmetic");}
-	}
-	else {break;}
-}
-return true;
-}
-	iTk = start;
-	return false;
+		else if (consume(SUB)) {
+			// -
+			Text_write(crtCode,"-");
 
+		}
+		else {
+			break;
+		}
+
+		Ret leftType = ret;
+		if (leftType.type == TYPE_STR)
+			tkerr("the operands of + or - cannot be of type str");
+
+		if (!exprMul())
+			tkerr("Lipseste expresia dupa operatorul aritmetic");
+
+		if (leftType.type != ret.type)
+			tkerr("different types for the operands of + or -");
+
+		ret.lval = false;
+	}
+
+	return true;
 }
 
 
 bool exprComp() {
 	int start = iTk;
 
-if (exprAdd()) {
-	Ret leftType=ret;
-	if (consume(LESS) || consume(EQUAL)) {
-		if (exprAdd()) {
-
-			if(leftType.type!=ret.type)tkerr("different types for the operands of < or ==");
-			setRet(TYPE_INT,false);
-
-		}else{tkerr("Lipseste expresia dupa operatorul de comparatie!");}
-
+	if (!exprAdd()) {
+		iTk = start;
+		return false;
 	}
 
+	Ret leftType = ret;
+
+	if (consume(LESS)) {
+		// <
+		Text_write(crtCode,"<");
+
+	}
+	else if (consume(EQUAL)) {
+		// ==
+		Text_write(crtCode,"==");
+
+	}
+	else {
+		return true;  // no comparison, still valid
+	}
+
+	if (!exprAdd())
+		tkerr("Lipseste expresia dupa operatorul de comparatie!");
+
+	if (leftType.type != ret.type)
+		tkerr("different types for the operands of < or ==");
+
+	setRet(TYPE_INT, false);
 	return true;
-}
-	iTk = start;
-	return false;
 }
 
 bool exprAssign() {
@@ -314,6 +390,9 @@ bool exprAssign() {
 		const char *name=consumed->text;
 
 		if (consume(ASSIGN)) {
+
+			Text_write(crtCode,"%s=",name);
+
 			if (exprComp()) {
 
 				Symbol *s=searchSymbol(name);
@@ -339,27 +418,42 @@ bool exprAssign() {
 
 bool exprLogic() {
 	int start = iTk;
-	if (exprAssign()){
 
-		while (true) {
-			if (consume(AND) || consume(OR)) {
+	if (!exprAssign()) {
+		iTk = start;
+		return false;
+	}
 
-				Ret leftType=ret;
-				if(leftType.type==TYPE_STR)tkerr("the left operand of && or || cannot be of type str");
+	while (true) {
 
-               if (exprAssign()) {
+		if (consume(AND)) {
 
-               	if(ret.type==TYPE_STR)tkerr("the right operand of && or || cannot be of type str");
-               	setRet(TYPE_INT,false);
-
-               }
-			}else {break;}
+			Text_write(crtCode,"&&");
 
 		}
-		return true;
+		else if (consume(OR)) {
+			// ok, handled OR
+			Text_write(crtCode,"||");
+
+		}
+		else {
+			break;
+		}
+
+		Ret leftType = ret;
+		if (leftType.type == TYPE_STR)
+			tkerr("the left operand of && or || cannot be of type str");
+
+		if (!exprAssign())
+			tkerr("missing right operand");
+
+		if (ret.type == TYPE_STR)
+			tkerr("the right operand of && or || cannot be of type str");
+
+		setRet(TYPE_INT, false);
 	}
-	iTk = start;
-	return false;
+
+	return true;
 }
 
 bool expr() {
@@ -392,6 +486,9 @@ bool instr() {
 
     if (expr()) {
         if (consume(SEMICOLON)) {
+
+        	Text_write(crtCode,";\n");
+
             return true;
         } else {
             tkerr("Lipseste ';' dupa expresie!");
@@ -403,15 +500,28 @@ bool instr() {
 
     if (consume(IF)) {
         if (consume(LPAR)) {
+
+        	Text_write(crtCode,"if(");
+
             if (expr()) {
 
             	if(ret.type==TYPE_STR)tkerr("the if condition must have type int or real");
 
                 if (consume(RPAR)) {
+
+                	Text_write(crtCode,"){\n");
+
                     if (block()) {
                         // optional ELSE block
+                    	Text_write(crtCode,"}\n");
+
                         if (consume(ELSE)) {
+
+                        	Text_write(crtCode,"else{\n");
+
                             if (block()) {
+
+                            	Text_write(crtCode,"}\n");
 
                             }else {tkerr("Lipseste blocul de cod dupa ELSE");}
 
@@ -429,12 +539,18 @@ bool instr() {
 
 
     if (consume(RETURN)) {
+
+    	Text_write(crtCode,"return ");
+
         if (expr()) {
 
         	if(!crtFn)tkerr("return can be used only in a function");
         	if(ret.type!=crtFn->type)tkerr("the return type must be the same as the function return type");
 
             if (consume(SEMICOLON)) {
+
+            	Text_write(crtCode,";\n");
+
                 return true;
             } else tkerr("Lipseste ';' dupa RETURN!");
         } else tkerr("Expresie lipsa dupa RETURN!");
@@ -444,14 +560,23 @@ bool instr() {
 
 
     if (consume(WHILE)) {
+
+    	Text_write(crtCode,"while(");
+
         if (consume(LPAR)) {
             if (expr()) {
 
             	if(ret.type==TYPE_STR)tkerr("the while condition must have type int or real");
 
                 if (consume(RPAR)) {
+
+                	Text_write(crtCode,"){\n");
+
                     if (block()) {
                         if (consume(END)) {
+
+                        	Text_write(crtCode,"}\n");
+
                             return true;
                         } else tkerr("Lipseste END dupa WHILE!");
                     } else tkerr("Bloc lipsa in WHILE!");
@@ -481,6 +606,11 @@ bool defFunc() {
 			crtFn->args = NULL;
 			addDomain();
 
+			crtCode=&tFunctions;
+			crtVar=&tFunctions;
+			Text_clear(&tFnHeader);
+			Text_write(&tFnHeader,"%s(",name);
+
 			if (consume(LPAR)) {
 
 				funcParams();
@@ -490,6 +620,7 @@ bool defFunc() {
 						if (baseType()) {
 
 							crtFn->type=ret.type;
+							Text_write(&tFunctions,"\n%s %s){\n",cType(ret.type),tFnHeader.buf);
 
 							while (defVar()) {
 
@@ -499,6 +630,11 @@ bool defFunc() {
 								if (consume(END)) {
 									delDomain();
 									crtFn=NULL;
+
+									Text_write(&tFunctions,"}\n");
+									crtCode=&tMain;
+									crtVar=&tBegin;
+
 									return true;
 								} else tkerr("Lipseste 'END' dupa blocul functiei!");
 							} else tkerr("Lipseste blocul de cod al functiei!");
@@ -520,6 +656,11 @@ bool defFunc() {
 
 	addDomain();
 	addPredefinedFns();
+	crtCode=&tMain;
+    crtVar=&tBegin;
+	Text_write(&tBegin,"#include \"quick.h\"\n\n");
+	Text_write(&tMain,"\nint main(){\n");
+
 
  	for(;;){
 		if(defVar()){}
@@ -531,6 +672,18 @@ bool defFunc() {
 
 
  		delDomain();
+
+ 		Text_write(&tMain,"return 0;\n}\n");
+ 		FILE *fis=fopen("1.c","w");
+ 		if(!fis) {
+ 			printf("cannot write to file 1.c\n");
+ 			exit(EXIT_FAILURE);
+ 		}
+
+ 		fwrite(tBegin.buf,sizeof(char),tBegin.n,fis);
+ 		fwrite(tFunctions.buf,sizeof(char),tFunctions.n,fis);
+ 		fwrite(tMain.buf,sizeof(char),tMain.n,fis); fclose(fis);
+
  		return true;
  		}else tkerr("syntax error");
  	return false;
